@@ -27,8 +27,8 @@ def get_linear_auth_url():
     base_url = os.environ.get('BASE_URL', f'http://localhost:{PORT}')
     redirect_uri = f"{base_url}/oauth/callback"
     state = ''.join(random.choices(string.ascii_lowercase + string.digits, k=7))
-    # Linear requires read,write scopes to fetch projects and create updates
-    return f"https://linear.app/oauth/authorize?client_id={client_id}&redirect_uri={requests.utils.quote(redirect_uri)}&response_type=code&state={state}&scope=read,write"
+    # Linear requires read,write scopes to fetch projects and create updates, prompt=consent forces workspace selector
+    return f"https://linear.app/oauth/authorize?client_id={client_id}&redirect_uri={requests.utils.quote(redirect_uri)}&response_type=code&state={state}&scope=read,write&prompt=consent"
 
 @app.route('/')
 def index():
@@ -137,7 +137,9 @@ def api_status():
     return jsonify({
         'linearConnections': connections,
         'activeConnectionId': data.get('activeConnectionId'),
-        'newsApiConnected': has_news_api_key
+        'newsApiConnected': has_news_api_key,
+        'syncIntervalHours': int(data.get('syncIntervalHours', 1)),
+        'syncDaysBack': int(data.get('syncDaysBack', 0))
     })
 
 @app.route('/api/config/select_linear', methods=['POST'])
@@ -188,6 +190,49 @@ def api_config_newsapi():
         with open(DATA_FILE, 'w') as f:
             json.dump(data, f, indent=2)
             
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/projects')
+def api_projects():
+    try:
+        from services.linear import get_projects
+        projects = get_projects()
+        return jsonify({'success': True, 'projects': projects})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/config/sync_settings', methods=['POST'])
+def api_config_sync_settings():
+    req_data = request.json or {}
+    try:
+        days_back = int(req_data.get('syncDaysBack', 0))
+        interval_hours = int(req_data.get('syncIntervalHours', 1))
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'Invalid parameter format'}), 400
+        
+    try:
+        with open(DATA_FILE, 'r') as f:
+            data = json.load(f)
+            
+        data['syncDaysBack'] = days_back
+        data['syncIntervalHours'] = interval_hours
+        
+        with open(DATA_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+            
+        # Reschedule background job
+        job = scheduler.get_job('scheduled_sync_job')
+        if job:
+            if interval_hours <= 0:
+                scheduler.pause_job('scheduled_sync_job')
+                print("Background sync task paused.")
+            else:
+                scheduler.resume_job('scheduled_sync_job')
+                scheduler.reschedule_job('scheduled_sync_job', trigger='interval', hours=interval_hours)
+                print(f"Background sync task rescheduled to run every {interval_hours} hour(s).")
+                
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -258,12 +303,35 @@ def api_webhook_sync():
 def scheduled_sync():
     print("Running scheduled sync...")
     try:
-        run_sync()
+        with open(DATA_FILE, 'r') as f:
+            data = json.load(f)
+        days_back = int(data.get('syncDaysBack', 0))
+        run_sync(days_back=days_back)
     except Exception as e:
         print(f"Scheduled sync failed: {e}")
 
+def get_initial_sync_interval():
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, 'r') as f:
+                data = json.load(f)
+            return int(data.get('syncIntervalHours', 1))
+        except Exception:
+            pass
+    return 1
+
+initial_interval = get_initial_sync_interval()
+
 scheduler = BackgroundScheduler()
-scheduler.add_job(func=scheduled_sync, trigger="interval", hours=1)
+# Add job, if initial_interval is 0 (disabled), start paused
+scheduler.add_job(
+    func=scheduled_sync, 
+    trigger="interval", 
+    hours=max(1, initial_interval), 
+    id="scheduled_sync_job"
+)
+if initial_interval <= 0:
+    scheduler.pause_job("scheduled_sync_job")
 scheduler.start()
 
 if __name__ == '__main__':

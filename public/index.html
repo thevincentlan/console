@@ -231,6 +231,49 @@
       </div>
     </div>
 
+    <!-- Workspace Projects Panel -->
+    <div class="integration-card" id="projects-panel" style="display: none;">
+      <div class="integration-header" style="margin-bottom: 16px;">
+        <h3 class="integration-title">Workspace Projects</h3>
+      </div>
+      <div id="projects-list-container" style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; text-align: left;">
+        <!-- Populated dynamically -->
+      </div>
+    </div>
+
+    <!-- Auto-Pull settings panel -->
+    <div class="integration-card" id="settings-panel" style="display: none; text-align: left;">
+      <div class="integration-header" style="margin-bottom: 16px;">
+        <h3 class="integration-title">Auto-Pull Settings (Background Sync)</h3>
+      </div>
+      <p style="margin-bottom: 16px; font-size: 14px; color: var(--text-muted);">Configure how often the server automatically checks for new articles and uploads summaries to your research boards.</p>
+      
+      <div class="input-group" style="margin-bottom: 16px;">
+        <label for="settings-interval" style="display: block; font-size: 14px; margin-bottom: 8px; color: var(--text-muted);">Sync Frequency</label>
+        <select id="settings-interval" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.2); color: #fff; font-size: 14px; box-sizing: border-box;">
+          <option value="1">Hourly (Every 1 hour)</option>
+          <option value="6">Every 6 hours</option>
+          <option value="12">Every 12 hours</option>
+          <option value="24">Daily (Every 24 hours)</option>
+          <option value="0">Disabled (Pause background task)</option>
+        </select>
+      </div>
+
+      <div class="input-group" style="margin-bottom: 24px;">
+        <label for="settings-days-back" style="display: block; font-size: 14px; margin-bottom: 8px; color: var(--text-muted);">Default News Timeframe</label>
+        <select id="settings-days-back" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.2); color: #fff; font-size: 14px; box-sizing: border-box;">
+          <option value="0">Today's news only</option>
+          <option value="1">Today & Yesterday (Past 1 day)</option>
+          <option value="3">Past 3 days</option>
+          <option value="7">Past week (Past 7 days)</option>
+          <option value="14">Past 2 weeks (Past 14 days)</option>
+        </select>
+      </div>
+
+      <button class="btn btn-sm" id="save-settings-btn" onclick="saveSyncSettings()" style="width: auto;">Save Settings</button>
+      <span id="settings-success-msg" style="display: none; color: #10b981; font-size: 14px; margin-left: 12px; font-weight: 500;">Settings saved!</span>
+    </div>
+
     <div class="actions" id="actions-panel">
       <h3>Trigger Sync Manually</h3>
       <p style="margin-bottom: 16px; font-size: 14px;">The sync runs automatically every hour, but you can trigger it here.</p>
@@ -270,6 +313,8 @@
         const data = await res.json();
         
         const actionsPanel = document.getElementById('actions-panel');
+        const projectsPanel = document.getElementById('projects-panel');
+        const settingsPanel = document.getElementById('settings-panel');
 
         // Linear Status
         const linearDot = document.getElementById('linear-status-dot');
@@ -322,11 +367,24 @@
           newsDisconnectBtn.style.display = 'none';
         }
 
-        // Show actions panel only if both are connected
+        // Load sync configurations into controls
+        document.getElementById('settings-interval').value = data.syncIntervalHours;
+        document.getElementById('settings-days-back').value = data.syncDaysBack;
+
+        // Toggle Panels
+        if (hasLinear) {
+          projectsPanel.style.display = 'block';
+          loadProjects();
+        } else {
+          projectsPanel.style.display = 'none';
+        }
+
         if (hasLinear && data.newsApiConnected) {
           actionsPanel.classList.add('visible');
+          settingsPanel.style.display = 'block';
         } else {
           actionsPanel.classList.remove('visible');
+          settingsPanel.style.display = 'none';
         }
 
         // Check for URL params
@@ -381,6 +439,80 @@
         }
       } catch (e) {
         alert('Error disconnecting');
+      }
+    }
+
+    async function loadProjects() {
+      const listEl = document.getElementById('projects-list-container');
+      try {
+        const res = await fetch('/api/projects');
+        const data = await res.json();
+        if (data.success) {
+          listEl.innerHTML = '';
+          if (!data.projects || data.projects.length === 0) {
+            listEl.innerHTML = '<div style="font-size: 14px; color: var(--text-muted);">No projects found in this workspace.</div>';
+            return;
+          }
+          
+          data.projects.forEach(proj => {
+            const name = proj.name || 'Untitled';
+            const matches = name.startsWith('Research: ');
+            const company = matches ? name.replace('Research: ', '').trim() : '';
+            
+            const item = document.createElement('div');
+            item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 6px;';
+            
+            if (matches) {
+              item.innerHTML = `
+                <span style="font-size: 14px; font-weight: 500; color: #10b981;">✓ ${name}</span>
+                <span style="font-size: 11px; background: rgba(16,185,129,0.1); color: #10b981; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Syncs "${company}"</span>
+              `;
+            } else {
+              item.innerHTML = `
+                <span style="font-size: 14px; color: var(--text-muted);">${name}</span>
+                <span style="font-size: 11px; background: rgba(255,255,255,0.05); color: var(--text-muted); padding: 2px 6px; border-radius: 4px;">Skipped</span>
+              `;
+            }
+            listEl.appendChild(item);
+          });
+        } else {
+          listEl.innerHTML = `<div style="font-size: 14px; color: #ef4444;">Error loading projects: ${data.error}</div>`;
+        }
+      } catch (e) {
+        listEl.innerHTML = '<div style="font-size: 14px; color: #ef4444;">Failed to retrieve projects list.</div>';
+      }
+    }
+
+    async function saveSyncSettings() {
+      const intervalSelect = document.getElementById('settings-interval');
+      const daysBackSelect = document.getElementById('settings-days-back');
+      const successMsg = document.getElementById('settings-success-msg');
+      const saveBtn = document.getElementById('save-settings-btn');
+      
+      saveBtn.disabled = true;
+      
+      const syncIntervalHours = parseInt(intervalSelect.value, 10);
+      const syncDaysBack = parseInt(daysBackSelect.value, 10);
+      
+      try {
+        const res = await fetch('/api/config/sync_settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ syncIntervalHours, syncDaysBack })
+        });
+        const data = await res.json();
+        if (data.success) {
+          successMsg.style.display = 'inline';
+          setTimeout(() => {
+            successMsg.style.display = 'none';
+          }, 3000);
+        } else {
+          alert('Error saving settings: ' + data.error);
+        }
+      } catch (e) {
+        alert('Failed to save settings');
+      } finally {
+        saveBtn.disabled = false;
       }
     }
 
