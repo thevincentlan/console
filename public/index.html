@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Linear & News API Sync</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.7);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #5e6ad2;
+      --primary-hover: #7b88eb;
+      --border: rgba(255, 255, 255, 0.1);
+    }
+    
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background-image: radial-gradient(circle at 50% -20%, #1e293b, var(--bg));
+    }
+
+    .container {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      text-align: center;
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    p {
+      color: var(--text-muted);
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+
+    .btn {
+      display: inline-block;
+      background: var(--primary);
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 500;
+      transition: background 0.2s ease, transform 0.1s ease;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      width: 100%;
+    }
+
+    .btn:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+    
+    .btn:disabled {
+      background: #475569;
+      cursor: not-allowed;
+    }
+
+    .btn-danger {
+      background: #dc2626;
+    }
+    .btn-danger:hover {
+      background: #ef4444;
+    }
+
+    .btn-sm {
+      padding: 8px 16px;
+      font-size: 14px;
+      width: auto;
+    }
+
+    .integration-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    .integration-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .integration-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #ef4444; /* red by default */
+    }
+
+    .status-dot.connected {
+      background: #10b981; /* green */
+    }
+
+    .actions {
+      margin-top: 32px;
+      border-top: 1px solid var(--border);
+      padding-top: 32px;
+      display: none;
+    }
+
+    .actions.visible {
+      display: block;
+    }
+
+    .input-group {
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    .input-group label {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 8px;
+      color: var(--text-muted);
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.2);
+      color: var(--text);
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    
+    .input-group input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .result {
+      margin-top: 16px;
+      font-size: 14px;
+      color: #10b981;
+      display: none;
+    }
+    
+    .error {
+      margin-top: 16px;
+      font-size: 14px;
+      color: #ef4444;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Integrations</h1>
+    <p>Connect your Linear workspace to automatically sync news articles for your research projects.</p>
+
+    <div class="integration-list" style="margin-bottom: 32px;">
+      <!-- Linear integration card -->
+      <div class="integration-card">
+        <div class="integration-header" style="margin-bottom: 16px;">
+          <h3 class="integration-title">Linear Workspaces</h3>
+          <div class="status-badge">
+            <div class="status-dot" id="linear-status-dot"></div>
+            <span id="linear-status-text">Disconnected</span>
+          </div>
+        </div>
+        
+        <!-- List of connected workspaces -->
+        <div id="linear-connections-list" style="margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px;">
+          <!-- Populated dynamically -->
+        </div>
+
+        <a href="/oauth/linear" class="btn btn-sm" id="linear-connect-btn">+ Connect Workspace</a>
+      </div>
+
+      <!-- News API integration card -->
+      <div class="integration-card">
+        <div class="integration-header">
+          <h3 class="integration-title">News API</h3>
+          <div class="status-badge">
+            <div class="status-dot" id="news-status-dot"></div>
+            <span id="news-status-text">Checking...</span>
+          </div>
+        </div>
+        <div id="news-input-group" style="display: flex; gap: 8px;">
+          <input type="password" id="news-api-key" placeholder="Enter News API Key" style="flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.2); color: #fff; font-size: 14px;">
+          <button class="btn btn-sm" id="news-save-btn" onclick="saveNewsKey()">Save Key</button>
+        </div>
+        <button class="btn btn-sm btn-danger" id="news-disconnect-btn" onclick="disconnect('newsapi')" style="display: none;">Disconnect</button>
+      </div>
+    </div>
+
+    <div class="actions" id="actions-panel">
+      <h3>Trigger Sync Manually</h3>
+      <p style="margin-bottom: 16px; font-size: 14px;">The sync runs automatically every hour, but you can trigger it here.</p>
+      
+      <div class="input-group">
+        <label for="company-name">Company Name (Optional, leave blank to sync all)</label>
+        <input type="text" id="company-name" placeholder="e.g. Apple">
+      </div>
+
+      <div class="input-group">
+        <label for="days-back">Days Back (0 for today only, up to 30)</label>
+        <input type="number" id="days-back" min="0" max="30" value="0">
+      </div>
+
+      <div class="checkbox-group" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; text-align: left; font-size: 14px; color: var(--text-muted);">
+        <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox" id="dry-run" style="cursor: pointer; margin: 0; width: auto; height: auto;">
+          <label for="dry-run" style="cursor: pointer; margin: 0;">Dry Run (Check to simulate without posting updates)</label>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox" id="create-project" style="cursor: pointer; margin: 0; width: auto; height: auto;">
+          <label for="create-project" style="cursor: pointer; margin: 0;">Create project if missing (prefixed with "Research:")</label>
+        </div>
+      </div>
+      
+      <button class="btn" id="sync-btn" onclick="triggerSync()">Run Sync Now</button>
+      
+      <div class="result" id="sync-result"></div>
+      <div class="error" id="sync-error"></div>
+    </div>
+  </div>
+
+  <script>
+    async function checkStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        
+        const actionsPanel = document.getElementById('actions-panel');
+
+        // Linear Status
+        const linearDot = document.getElementById('linear-status-dot');
+        const linearText = document.getElementById('linear-status-text');
+        const listContainer = document.getElementById('linear-connections-list');
+        
+        listContainer.innerHTML = '';
+        const hasLinear = data.linearConnections && data.linearConnections.length > 0;
+        
+        if (hasLinear) {
+          linearDot.classList.add('connected');
+          linearText.textContent = 'Connected';
+          
+          data.linearConnections.forEach(conn => {
+            const isActive = conn.id === data.activeConnectionId;
+            const item = document.createElement('div');
+            item.className = 'workspace-item';
+            item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.15); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);';
+            item.innerHTML = `
+              <div style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;" onclick="selectWorkspace('${conn.id}')">
+                <input type="radio" name="active-workspace" value="${conn.id}" ${isActive ? 'checked' : ''} style="cursor: pointer; margin: 0;">
+                <span style="font-size: 14px; font-weight: 500; color: #fff;">${conn.name}</span>
+                ${isActive ? '<span style="font-size: 11px; background: #10b981; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: 600; margin-left: 6px;">Active</span>' : ''}
+              </div>
+              <button class="btn btn-sm btn-danger" style="padding: 4px 8px; font-size: 12px; background: #dc2626; width: auto;" onclick="disconnectWorkspace(event, '${conn.id}', '${conn.name}')">Disconnect</button>
+            `;
+            listContainer.appendChild(item);
+          });
+        } else {
+          linearDot.classList.remove('connected');
+          linearText.textContent = 'Disconnected';
+          listContainer.innerHTML = '<div style="font-size: 14px; color: var(--text-muted); text-align: left; padding: 8px 0;">No workspaces connected. Click below to add one.</div>';
+        }
+
+        // News API Status
+        const newsDot = document.getElementById('news-status-dot');
+        const newsText = document.getElementById('news-status-text');
+        const newsInputGroup = document.getElementById('news-input-group');
+        const newsDisconnectBtn = document.getElementById('news-disconnect-btn');
+
+        if (data.newsApiConnected) {
+          newsDot.classList.add('connected');
+          newsText.textContent = 'Connected';
+          newsInputGroup.style.display = 'none';
+          newsDisconnectBtn.style.display = 'inline-block';
+        } else {
+          newsDot.classList.remove('connected');
+          newsText.textContent = 'Disconnected';
+          newsInputGroup.style.display = 'flex';
+          newsDisconnectBtn.style.display = 'none';
+        }
+
+        // Show actions panel only if both are connected
+        if (hasLinear && data.newsApiConnected) {
+          actionsPanel.classList.add('visible');
+        } else {
+          actionsPanel.classList.remove('visible');
+        }
+
+        // Check for URL params
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('success') === 'true') {
+          // Remove query param to clean up URL
+          window.history.replaceState({}, document.title, "/");
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function selectWorkspace(connectionId) {
+      try {
+        const res = await fetch('/api/config/select_linear', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ connectionId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          checkStatus();
+        } else {
+          alert('Error switching workspace: ' + data.error);
+        }
+      } catch (e) {
+        alert('Error switching workspace');
+      }
+    }
+
+    async function disconnectWorkspace(event, connectionId, workspaceName) {
+      event.stopPropagation();
+      if (!confirm(`Are you sure you want to disconnect workspace "${workspaceName}"?`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/config/disconnect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            integration: 'linear',
+            connectionId: connectionId
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          checkStatus();
+        } else {
+          alert('Error disconnecting: ' + data.error);
+        }
+      } catch (e) {
+        alert('Error disconnecting');
+      }
+    }
+
+    async function saveNewsKey() {
+      const keyInput = document.getElementById('news-api-key');
+      const key = keyInput.value.trim();
+      if (!key) {
+        alert('Please enter a valid News API Key');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/config/newsapi', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newsApiKey: key })
+        });
+        const data = await res.json();
+        if (data.success) {
+          keyInput.value = '';
+          checkStatus();
+        } else {
+          alert('Error saving API Key: ' + data.error);
+        }
+      } catch (e) {
+        alert('Error saving API Key');
+      }
+    }
+
+    async function disconnect(integration) {
+      if (!confirm(`Are you sure you want to disconnect ${integration}?`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/config/disconnect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ integration })
+        });
+        const data = await res.json();
+        if (data.success) {
+          checkStatus();
+        } else {
+          alert('Error disconnecting: ' + data.error);
+        }
+      } catch (e) {
+        alert('Error disconnecting');
+      }
+    }
+
+    async function triggerSync() {
+      const btn = document.getElementById('sync-btn');
+      const resultEl = document.getElementById('sync-result');
+      const errorEl = document.getElementById('sync-error');
+      const companyName = document.getElementById('company-name').value;
+      const daysBack = parseInt(document.getElementById('days-back').value, 10) || 0;
+      const dryRun = document.getElementById('dry-run').checked;
+      const createProjectIfMissing = document.getElementById('create-project').checked;
+
+      btn.disabled = true;
+      btn.textContent = 'Syncing...';
+      resultEl.style.display = 'none';
+      errorEl.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/webhook/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            companyName: companyName || undefined,
+            daysBack: daysBack,
+            dryRun: dryRun,
+            createProjectIfMissing: createProjectIfMissing
+          })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          const dryRunText = data.result.dryRun ? ' (Simulated - no posts made)' : '';
+          resultEl.textContent = `Success! Synced ${data.result.syncedProjectsCount} projects. Found ${data.result.newArticlesPosted} new updates${dryRunText}.`;
+          resultEl.style.display = 'block';
+        } else {
+          errorEl.textContent = `Error: ${data.error}`;
+          errorEl.style.display = 'block';
+        }
+      } catch (e) {
+        errorEl.textContent = `Error: Failed to connect to server.`;
+        errorEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Run Sync Now';
+      }
+    }
+
+    // Check status on load
+    checkStatus();
+  </script>
+</body>
+</html>

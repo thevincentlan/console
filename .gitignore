@@ -1,0 +1,18 @@
+# Python virtual environment
+venv/
+.venv/
+ENV/
+
+# Redundant Node modules
+node_modules/
+
+# Local credentials and sync history
+.env
+data.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
