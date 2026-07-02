@@ -55,6 +55,26 @@ def test_post_custom_article():
         print(f"Request failed: {e}")
     print("\n")
 
+def test_trigger_sync_all():
+    """
+    Simulates triggering an automated sync for ALL existing research projects in Linear
+    """
+    print("--- 3. Testing POST /api/webhook/sync for ALL projects (Dry Run) ---")
+    url = f"{BASE_URL}/api/webhook/sync"
+    payload = {
+        "daysBack": 1,
+        "dryRun": True
+    }
+    try:
+        response = requests.post(url, json=payload)
+        print(f"Status Code: {response.status_code}")
+        print("Response JSON:")
+        print(response.json())
+    except Exception as e:
+        print(f"Request failed: {e}")
+    print("\n")
+
 if __name__ == '__main__':
     test_trigger_sync()
+    test_trigger_sync_all()
     test_post_custom_article()
