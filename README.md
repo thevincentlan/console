@@ -72,12 +72,12 @@ To allow Linear to send redirect callbacks to your local machine and test the we
 
 ---
 
-## Deployment & Verification Guide
+## Web Exposure & Verification Guide
 
-The application is deployed on **Vercel** and can be accessed and triggered live over the web.
+To expose the application to the web for external webhook triggers and OAuth redirect callbacks, you can use **ngrok**.
 
-* **Live Deployment URL**: `https://your-vercel-domain.vercel.app` *(Replace with your actual Vercel domain)*
-* **Callback OAuth URL**: `https://your-vercel-domain.vercel.app/oauth/callback`
+* **Live Public URL**: `https://your-subdomain.ngrok-free.dev` *(obtained from your active ngrok terminal)*
+* **Callback OAuth URL**: `https://your-subdomain.ngrok-free.dev/oauth/callback`
 
 ### 1. Triggering Automated Sync
 
@@ -90,9 +90,9 @@ curl -X POST http://localhost:3000/api/webhook/sync \
   -d '{"companyName": "Apple", "daysBack": 0, "dryRun": true}'
 ```
 
-**Hit Over the Web (Vercel):**
+**Hit Over the Web (via ngrok):**
 ```bash
-curl -X POST https://your-vercel-domain.vercel.app/api/webhook/sync \
+curl -X POST https://your-subdomain.ngrok-free.dev/api/webhook/sync \
   -H "Content-Type: application/json" \
   -d '{"companyName": "Apple", "daysBack": 0, "dryRun": true}'
 ```
@@ -114,9 +114,9 @@ curl -X POST http://localhost:3000/api/webhook/post_article \
   }'
 ```
 
-**Hit Over the Web (Vercel):**
+**Hit Over the Web (via ngrok):**
 ```bash
-curl -X POST https://your-vercel-domain.vercel.app/api/webhook/post_article \
+curl -X POST https://your-subdomain.ngrok-free.dev/api/webhook/post_article \
   -H "Content-Type: application/json" \
   -d '{
     "companyName": "Google",
