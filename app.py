@@ -15,7 +15,7 @@ from services.linear import get_organization_info
 
 app = Flask(__name__, static_folder='public')
 PORT = int(os.environ.get('PORT', 3000))
-DATA_FILE = os.path.join(os.path.dirname(__file__), 'data.json')
+from services.db import DATA_FILE
 
 # Ensure data file exists
 if not os.path.exists(DATA_FILE):
