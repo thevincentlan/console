@@ -47,6 +47,13 @@ def run_sync(target_company=None, days_back=0, dry_run=False, create_project_if_
     projects = get_projects()
     research_projects = [p for p in projects if p.get('name', '').startswith('Research: ')]
 
+    # Filter out projects deselected/excluded in configuration
+    excluded_projects = data.get('excludedProjects', {})
+    research_projects = [
+        p for p in research_projects
+        if not excluded_projects.get(p['id'], False)
+    ]
+
     # If target_company is specified, check if it exists (case-insensitive)
     if target_company:
         matching_projects = [

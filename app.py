@@ -24,7 +24,8 @@ if not os.path.exists(DATA_FILE):
             'linearToken': None,
             'linearConnections': [],
             'activeConnectionId': None,
-            'postedArticles': {}
+            'postedArticles': {},
+            'excludedProjects': {}
         }, f, indent=2)
 
 def get_linear_auth_url():
@@ -130,7 +131,8 @@ def api_status():
         'activeConnectionId': data.get('activeConnectionId'),
         'newsApiConnected': has_news_api_key,
         'syncIntervalHours': int(data.get('syncIntervalHours', 1)),
-        'syncDaysBack': int(data.get('syncDaysBack', 0))
+        'syncDaysBack': int(data.get('syncDaysBack', 0)),
+        'excludedProjects': data.get('excludedProjects', {})
     })
 
 @app.route('/api/config/select_linear', methods=['POST'])
@@ -191,6 +193,56 @@ def api_projects():
         from services.linear import get_projects
         projects = get_projects()
         return jsonify({'success': True, 'projects': projects})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/config/toggle_project_sync', methods=['POST'])
+def api_config_toggle_project_sync():
+    req_data = request.json or {}
+    project_id = req_data.get('projectId')
+    excluded = bool(req_data.get('excluded', False))
+    
+    if not project_id:
+        return jsonify({'success': False, 'error': 'Project ID is required'}), 400
+        
+    try:
+        with open(DATA_FILE, 'r') as f:
+            data = json.load(f)
+            
+        if 'excludedProjects' not in data:
+            data['excludedProjects'] = {}
+            
+        data['excludedProjects'][project_id] = excluded
+        
+        with open(DATA_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+            
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/config/create_project', methods=['POST'])
+def api_config_create_project():
+    req_data = request.json or {}
+    company_name = req_data.get('companyName', '').strip()
+    
+    if not company_name:
+        return jsonify({'success': False, 'error': 'Company name is required'}), 400
+        
+    try:
+        from services.linear import get_teams, create_project
+        teams = get_teams()
+        if not teams:
+            return jsonify({'success': False, 'error': 'No teams found in this Linear workspace'}), 404
+            
+        first_team_id = teams[0]['id']
+        project_name = f"Research: {company_name}"
+        
+        create_result = create_project(project_name, [first_team_id])
+        if not create_result.get('success'):
+            return jsonify({'success': False, 'error': 'Failed to create project in Linear'}), 500
+            
+        return jsonify({'success': True, 'project': create_result.get('project')})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

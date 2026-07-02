@@ -236,9 +236,16 @@
       <div class="integration-header" style="margin-bottom: 16px;">
         <h3 class="integration-title">Workspace Projects</h3>
       </div>
-      <div id="projects-list-container" style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; text-align: left;">
+      <div id="projects-list-container" style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; text-align: left; margin-bottom: 16px;">
         <!-- Populated dynamically -->
       </div>
+      
+      <!-- Inline Project Creator -->
+      <div style="display: flex; gap: 8px; margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px;">
+        <input type="text" id="new-project-company" placeholder="Enter Company (e.g. Tesla)" style="flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.2); color: #fff; font-size: 14px; box-sizing: border-box;">
+        <button class="btn btn-sm" id="create-project-btn" onclick="createNewProject()" style="width: auto;">+ Add Project</button>
+      </div>
+      <div id="create-project-error" style="display: none; color: #ef4444; font-size: 13px; margin-top: 8px; text-align: left; font-weight: 500;"></div>
     </div>
 
     <!-- Auto-Pull settings panel -->
@@ -426,6 +433,7 @@
         document.getElementById('settings-days-back').value = data.syncDaysBack;
 
         // Toggle Panels
+        window.excludedProjects = data.excludedProjects || {};
         const customPostPanel = document.getElementById('custom-post-panel');
         if (hasLinear) {
           projectsPanel.style.display = 'block';
@@ -511,22 +519,30 @@
             return;
           }
           
+          const excludedMap = window.excludedProjects || {};
+          
           data.projects.forEach(proj => {
             const name = proj.name || 'Untitled';
             const matches = name.startsWith('Research: ');
             const company = matches ? name.replace('Research: ', '').trim() : '';
+            const isExcluded = excludedMap[proj.id] === true;
             
             const item = document.createElement('div');
             item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 6px;';
             
             if (matches) {
               item.innerHTML = `
-                <span style="font-size: 14px; font-weight: 500; color: #10b981;">✓ ${name}</span>
-                <span style="font-size: 11px; background: rgba(16,185,129,0.1); color: #10b981; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Syncs "${company}"</span>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <input type="checkbox" id="chk-${proj.id}" ${!isExcluded ? 'checked' : ''} onchange="toggleProjectSync('${proj.id}', this)" style="cursor: pointer; margin: 0; width: 16px; height: 16px;">
+                  <label for="chk-${proj.id}" style="font-size: 14px; font-weight: 500; cursor: pointer; color: ${isExcluded ? 'var(--text-muted)' : '#10b981'}; text-decoration: ${isExcluded ? 'line-through' : 'none'};">${name}</label>
+                </div>
+                <span style="font-size: 11px; background: ${isExcluded ? 'rgba(255,255,255,0.05)' : 'rgba(16,185,129,0.1)'}; color: ${isExcluded ? 'var(--text-muted)' : '#10b981'}; padding: 2px 6px; border-radius: 4px; font-weight: 600;">
+                  ${isExcluded ? 'Skipped (Deselected)' : `Syncs "${company}"`}
+                </span>
               `;
             } else {
               item.innerHTML = `
-                <span style="font-size: 14px; color: var(--text-muted);">${name}</span>
+                <span style="font-size: 14px; color: var(--text-muted); padding-left: 26px;">${name}</span>
                 <span style="font-size: 11px; background: rgba(255,255,255,0.05); color: var(--text-muted); padding: 2px 6px; border-radius: 4px;">Skipped</span>
               `;
             }
@@ -537,6 +553,92 @@
         }
       } catch (e) {
         listEl.innerHTML = '<div style="font-size: 14px; color: #ef4444;">Failed to retrieve projects list.</div>';
+      }
+    }
+
+    async function toggleProjectSync(projectId, checkboxEl) {
+      const isChecked = checkboxEl.checked;
+      const isExcluded = !isChecked;
+      
+      const label = checkboxEl.nextElementSibling;
+      const badge = checkboxEl.closest('div').parentElement.querySelector('span:last-child');
+      
+      if (isExcluded) {
+        label.style.color = 'var(--text-muted)';
+        label.style.textDecoration = 'line-through';
+        if (badge) {
+          badge.style.background = 'rgba(255,255,255,0.05)';
+          badge.style.color = 'var(--text-muted)';
+          badge.textContent = 'Skipped (Deselected)';
+        }
+      } else {
+        label.style.color = '#10b981';
+        label.style.textDecoration = 'none';
+        if (badge) {
+          badge.style.background = 'rgba(16,185,129,0.1)';
+          badge.style.color = '#10b981';
+          const company = label.textContent.replace('Research: ', '').trim();
+          badge.textContent = `Syncs "${company}"`;
+        }
+      }
+      
+      try {
+        const res = await fetch('/api/config/toggle_project_sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId, excluded: isExcluded })
+        });
+        const data = await res.json();
+        if (!data.success) {
+          alert('Failed to update sync status: ' + data.error);
+          checkboxEl.checked = !isChecked;
+          toggleProjectSync(projectId, checkboxEl);
+        } else {
+          window.excludedProjects[projectId] = isExcluded;
+        }
+      } catch (e) {
+        alert('Connection error. Failed to toggle project sync.');
+        checkboxEl.checked = !isChecked;
+        toggleProjectSync(projectId, checkboxEl);
+      }
+    }
+
+    async function createNewProject() {
+      const inputEl = document.getElementById('new-project-company');
+      const btn = document.getElementById('create-project-btn');
+      const errorEl = document.getElementById('create-project-error');
+      
+      const companyName = inputEl.value.trim();
+      if (!companyName) {
+        alert('Please enter a company name.');
+        return;
+      }
+      
+      btn.disabled = true;
+      btn.textContent = 'Adding...';
+      errorEl.style.display = 'none';
+      
+      try {
+        const res = await fetch('/api/config/create_project', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ companyName })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          inputEl.value = '';
+          loadProjects();
+        } else {
+          errorEl.textContent = `Error: ${data.error}`;
+          errorEl.style.display = 'block';
+        }
+      } catch (e) {
+        errorEl.textContent = 'Error: Failed to connect to server.';
+        errorEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '+ Add Project';
       }
     }
 
