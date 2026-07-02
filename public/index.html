@@ -274,6 +274,60 @@
       <span id="settings-success-msg" style="display: none; color: #10b981; font-size: 14px; margin-left: 12px; font-weight: 500;">Settings saved!</span>
     </div>
 
+    <!-- Post Custom Article Update Panel -->
+    <div class="integration-card" id="custom-post-panel" style="display: none; text-align: left;">
+      <div class="integration-header" style="margin-bottom: 16px;">
+        <h3 class="integration-title">Post Custom Article Update</h3>
+      </div>
+      <p style="margin-bottom: 16px; font-size: 14px; color: var(--text-muted);">Post a custom article update directly to a company research project.</p>
+      
+      <div class="input-group" style="margin-bottom: 16px;">
+        <label for="custom-company">Company Name (Required)</label>
+        <input type="text" id="custom-company" placeholder="e.g. Google" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.2); color: #fff; font-size: 14px; box-sizing: border-box;">
+      </div>
+
+      <div class="input-group" style="margin-bottom: 16px;">
+        <label for="custom-title">Article Title (Required)</label>
+        <input type="text" id="custom-title" placeholder="e.g. Google Launches Gemini 1.5 Pro" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.2); color: #fff; font-size: 14px; box-sizing: border-box;">
+      </div>
+
+      <div class="input-group" style="margin-bottom: 16px;">
+        <label for="custom-url">Article Link/URL (Required)</label>
+        <input type="text" id="custom-url" placeholder="e.g. https://example.com/article" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.2); color: #fff; font-size: 14px; box-sizing: border-box;">
+      </div>
+
+      <div class="input-group" style="margin-bottom: 16px;">
+        <label for="custom-source">Source Name (Optional)</label>
+        <input type="text" id="custom-source" placeholder="e.g. TechCrunch" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.2); color: #fff; font-size: 14px; box-sizing: border-box;">
+      </div>
+
+      <div class="input-group" style="margin-bottom: 16px;">
+        <label for="custom-description">Description/Summary (Optional)</label>
+        <textarea id="custom-description" rows="3" placeholder="Brief summary of the article..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.2); color: #fff; font-size: 14px; box-sizing: border-box; resize: vertical; font-family: inherit;"></textarea>
+      </div>
+
+      <div class="input-group" style="margin-bottom: 24px;">
+        <label for="custom-published-at">Published Date (Optional)</label>
+        <input type="date" id="custom-published-at" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.2); color: #fff; font-size: 14px; box-sizing: border-box;">
+      </div>
+
+      <div class="checkbox-group" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; text-align: left; font-size: 14px; color: var(--text-muted);">
+        <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox" id="custom-dry-run" style="cursor: pointer; margin: 0; width: auto; height: auto;">
+          <label for="custom-dry-run" style="cursor: pointer; margin: 0;">Dry Run (Check to simulate without posting updates)</label>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox" id="custom-create-project" style="cursor: pointer; margin: 0; width: auto; height: auto;">
+          <label for="custom-create-project" style="cursor: pointer; margin: 0;">Create project if missing (prefixed with "Research:")</label>
+        </div>
+      </div>
+
+      <button class="btn btn-sm" id="post-custom-btn" onclick="postCustomArticle()" style="width: auto;">Post Update</button>
+      
+      <div class="result" id="custom-result" style="margin-top: 16px; font-size: 14px; color: #10b981; display: none;"></div>
+      <div class="error" id="custom-error" style="margin-top: 16px; font-size: 14px; color: #ef4444; display: none;"></div>
+    </div>
+
     <div class="actions" id="actions-panel">
       <h3>Trigger Sync Manually</h3>
       <p style="margin-bottom: 16px; font-size: 14px;">The sync runs automatically every hour, but you can trigger it here.</p>
@@ -372,11 +426,14 @@
         document.getElementById('settings-days-back').value = data.syncDaysBack;
 
         // Toggle Panels
+        const customPostPanel = document.getElementById('custom-post-panel');
         if (hasLinear) {
           projectsPanel.style.display = 'block';
+          customPostPanel.style.display = 'block';
           loadProjects();
         } else {
           projectsPanel.style.display = 'none';
+          customPostPanel.style.display = 'none';
         }
 
         if (hasLinear && data.newsApiConnected) {
@@ -605,6 +662,78 @@
       } finally {
         btn.disabled = false;
         btn.textContent = 'Run Sync Now';
+      }
+    }
+
+    async function postCustomArticle() {
+      const btn = document.getElementById('post-custom-btn');
+      const resultEl = document.getElementById('custom-result');
+      const errorEl = document.getElementById('custom-error');
+      
+      const companyName = document.getElementById('custom-company').value.trim();
+      const title = document.getElementById('custom-title').value.trim();
+      const url = document.getElementById('custom-url').value.trim();
+      const source = document.getElementById('custom-source').value.trim();
+      const description = document.getElementById('custom-description').value.trim();
+      const publishedAt = document.getElementById('custom-published-at').value;
+      const dryRun = document.getElementById('custom-dry-run').checked;
+      const createProjectIfMissing = document.getElementById('custom-create-project').checked;
+
+      if (!companyName || !title || !url) {
+        alert('Company Name, Title, and Article URL are required.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Posting...';
+      resultEl.style.display = 'none';
+      errorEl.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/webhook/post_article', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            companyName,
+            title,
+            url,
+            source: source || undefined,
+            description: description || undefined,
+            publishedAt: publishedAt || undefined,
+            dryRun,
+            createProjectIfMissing
+          })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          const resObj = data.result;
+          const statusText = resObj.status === 'duplicate' ? 'Duplicate (Ignored)' : 'Success!';
+          const dryRunText = resObj.dryRun ? ' (Simulated - no post made)' : '';
+          
+          resultEl.textContent = `${statusText}: ${resObj.message}${dryRunText}`;
+          resultEl.style.display = 'block';
+          if (resObj.status !== 'duplicate' && !resObj.dryRun) {
+            document.getElementById('custom-company').value = '';
+            document.getElementById('custom-title').value = '';
+            document.getElementById('custom-url').value = '';
+            document.getElementById('custom-source').value = '';
+            document.getElementById('custom-description').value = '';
+            document.getElementById('custom-published-at').value = '';
+          }
+          if (createProjectIfMissing && !resObj.dryRun) {
+            loadProjects();
+          }
+        } else {
+          errorEl.textContent = `Error: ${data.error}`;
+          errorEl.style.display = 'block';
+        }
+      } catch (e) {
+        errorEl.textContent = `Error: Failed to connect to server.`;
+        errorEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Post Update';
       }
     }
 

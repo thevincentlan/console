@@ -10,7 +10,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 # Load environment variables
 load_dotenv()
 
-from services.sync import run_sync
+from services.sync import run_sync, post_single_article
 from services.linear import get_organization_info
 
 app = Flask(__name__, static_folder='public')
@@ -20,7 +20,12 @@ DATA_FILE = os.path.join(os.path.dirname(__file__), 'data.json')
 # Ensure data file exists
 if not os.path.exists(DATA_FILE):
     with open(DATA_FILE, 'w') as f:
-        json.dump({'linearToken': None}, f)
+        json.dump({
+            'linearToken': None,
+            'linearConnections': [],
+            'activeConnectionId': None,
+            'postedArticles': {}
+        }, f, indent=2)
 
 def get_linear_auth_url():
     client_id = os.environ.get('LINEAR_CLIENT_ID')
@@ -40,6 +45,7 @@ def oauth_linear():
         return "Linear Client ID not configured in .env", 500
     return redirect(get_linear_auth_url())
 
+# used to set up oauth
 @app.route('/oauth/callback')
 def oauth_callback():
     code = request.args.get('code')
@@ -103,6 +109,7 @@ def oauth_callback():
         print('OAuth Error:', str(e))
         return "Error authenticating with Linear", 500
 
+# used to get connection status
 @app.route('/api/status')
 def api_status():
     with open(DATA_FILE, 'r') as f:
@@ -117,22 +124,6 @@ def api_status():
             'id': conn.get('id'),
             'name': conn.get('name')
         })
-        
-    # Auto-migrate single token if it exists (backwards compatibility)
-    if not connections and data.get('linearToken'):
-        try:
-            token = data['linearToken']
-            org_info = get_organization_info(token)
-            org_id = org_info.get('id')
-            org_name = org_info.get('name', 'Default Workspace')
-            conn_obj = {'id': org_id, 'name': org_name, 'token': token}
-            data['linearConnections'] = [conn_obj]
-            data['activeConnectionId'] = org_id
-            with open(DATA_FILE, 'w') as f:
-                json.dump(data, f, indent=2)
-            connections = [{'id': org_id, 'name': org_name}]
-        except Exception:
-            pass
             
     return jsonify({
         'linearConnections': connections,
@@ -297,6 +288,40 @@ def api_webhook_sync():
         return jsonify({'success': True, 'result': result})
     except Exception as e:
         print('Sync error:', e)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/webhook/post_article', methods=['POST'])
+def api_webhook_post_article():
+    req_data = request.json or {}
+    company_name = req_data.get('companyName')
+    title = req_data.get('title')
+    url = req_data.get('url')
+    
+    if not company_name or not title or not url:
+        return jsonify({'success': False, 'error': 'Missing required fields: companyName, title, and url are required'}), 400
+        
+    description = req_data.get('description')
+    source = req_data.get('source')
+    published_at = req_data.get('publishedAt')
+    dry_run = bool(req_data.get('dryRun', False))
+    create_project_if_missing = bool(req_data.get('createProjectIfMissing', False))
+    
+    try:
+        result = post_single_article(
+            company_name=company_name,
+            article_data={
+                'title': title,
+                'url': url,
+                'description': description,
+                'source': source,
+                'publishedAt': published_at
+            },
+            dry_run=dry_run,
+            create_project_if_missing=create_project_if_missing
+        )
+        return jsonify({'success': True, 'result': result})
+    except Exception as e:
+        print('Post custom article error:', e)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # Set up background scheduler
