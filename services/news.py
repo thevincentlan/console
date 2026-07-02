@@ -2,7 +2,7 @@ import os
 import json
 import requests
 from datetime import datetime, timedelta
-from services.db import DATA_FILE
+DATA_FILE = os.path.join(os.path.dirname(__file__), '..', 'data.json')
 
 def get_news_api_key():
     # 1. Try to read from data.json first (dynamic configuration)

@@ -1,7 +1,7 @@
 import os
 import json
 import requests
-from services.db import DATA_FILE
+DATA_FILE = os.path.join(os.path.dirname(__file__), '..', 'data.json')
 
 def get_linear_token():
     if not os.path.exists(DATA_FILE):

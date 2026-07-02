@@ -2,7 +2,7 @@ import os
 import json
 from services.linear import get_projects, create_project_update, get_teams, create_project
 from services.news import get_recent_news
-from services.db import DATA_FILE
+DATA_FILE = os.path.join(os.path.dirname(__file__), '..', 'data.json')
 
 def format_article_markdown(article):
     title = article.get('title') or 'No Title'
