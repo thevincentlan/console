@@ -72,6 +72,63 @@ To allow Linear to send redirect callbacks to your local machine and test the we
 
 ---
 
+## Deployment & Verification Guide
+
+The application is deployed on **Vercel** and can be accessed and triggered live over the web.
+
+* **Live Deployment URL**: `https://your-vercel-domain.vercel.app` *(Replace with your actual Vercel domain)*
+* **Callback OAuth URL**: `https://your-vercel-domain.vercel.app/oauth/callback`
+
+### 1. Triggering Automated Sync
+
+This endpoint crawls the News API for headlines and posts matching projects on Linear.
+
+**Hit Locally:**
+```bash
+curl -X POST http://localhost:3000/api/webhook/sync \
+  -H "Content-Type: application/json" \
+  -d '{"companyName": "Apple", "daysBack": 0, "dryRun": true}'
+```
+
+**Hit Over the Web (Vercel):**
+```bash
+curl -X POST https://your-vercel-domain.vercel.app/api/webhook/sync \
+  -H "Content-Type: application/json" \
+  -d '{"companyName": "Apple", "daysBack": 0, "dryRun": true}'
+```
+
+### 2. Ingesting Custom Updates (Gateway)
+
+This endpoint posts a single, manually structured update directly to your Linear boards.
+
+**Hit Locally:**
+```bash
+curl -X POST http://localhost:3000/api/webhook/post_article \
+  -H "Content-Type: application/json" \
+  -d '{
+    "companyName": "Google",
+    "title": "Gemini 1.5 Pro Release",
+    "url": "https://deepmind.google/technologies/gemini/",
+    "source": "Google DeepMind",
+    "dryRun": true
+  }'
+```
+
+**Hit Over the Web (Vercel):**
+```bash
+curl -X POST https://your-vercel-domain.vercel.app/api/webhook/post_article \
+  -H "Content-Type: application/json" \
+  -d '{
+    "companyName": "Google",
+    "title": "Gemini 1.5 Pro Release",
+    "url": "https://deepmind.google/technologies/gemini/",
+    "source": "Google DeepMind",
+    "dryRun": true
+  }'
+```
+
+---
+
 ## API Guide / Reference
 
 ### 1. Trigger Automated News API Sync
